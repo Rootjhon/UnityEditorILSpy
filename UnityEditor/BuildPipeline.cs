@@ -1,0 +1,433 @@
+using Mono.Cecil;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Runtime.CompilerServices;
+using UnityEditor.BuildReporting;
+using UnityEngine;
+using UnityEngine.Scripting;
+
+namespace UnityEditor
+{
+	public sealed class BuildPipeline
+	{
+		public static extern bool isBuildingPlayer
+		{
+			[GeneratedByOldBindingsGenerator]
+			[MethodImpl(MethodImplOptions.InternalCall)]
+			get;
+		}
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern BuildTargetGroup GetBuildTargetGroup(BuildTarget platform);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern BuildTargetGroup GetBuildTargetGroupByName(string platform);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern BuildTarget GetBuildTargetByName(string platform);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetBuildTargetGroupDisplayName(BuildTargetGroup targetPlatformGroup);
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetBuildTargetName(BuildTarget targetPlatform);
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetEditorTargetName();
+
+		[Obsolete("PushAssetDependencies has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details."), GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern void PushAssetDependencies();
+
+		[Obsolete("PopAssetDependencies has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details."), GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern void PopAssetDependencies();
+
+		private static string[] InvokeCalculateBuildTags(BuildTarget target, BuildTargetGroup group)
+		{
+			return new string[0];
+		}
+
+		private static void LogBuildExceptionAndExit(string buildFunctionName, Exception exception)
+		{
+			Debug.LogErrorFormat("Internal Error in {0}:", new object[]
+			{
+				buildFunctionName
+			});
+			Debug.LogException(exception);
+			EditorApplication.Exit(1);
+		}
+
+		public static string BuildPlayer(EditorBuildSettingsScene[] levels, string locationPathName, BuildTarget target, BuildOptions options)
+		{
+			return BuildPipeline.BuildPlayer(new BuildPlayerOptions
+			{
+				scenes = EditorBuildSettingsScene.GetActiveSceneList(levels),
+				locationPathName = locationPathName,
+				target = target,
+				options = options
+			});
+		}
+
+		public static string BuildPlayer(string[] levels, string locationPathName, BuildTarget target, BuildOptions options)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
+			return BuildPipeline.BuildPlayer(new BuildPlayerOptions
+			{
+				scenes = levels,
+				locationPathName = locationPathName,
+				targetGroup = buildTargetGroup,
+				target = target,
+				options = options
+			});
+		}
+
+		public static string BuildPlayer(BuildPlayerOptions buildPlayerOptions)
+		{
+			return BuildPipeline.BuildPlayer(buildPlayerOptions.scenes, buildPlayerOptions.locationPathName, buildPlayerOptions.assetBundleManifestPath, buildPlayerOptions.targetGroup, buildPlayerOptions.target, buildPlayerOptions.options);
+		}
+
+		private static string BuildPlayer(string[] scenes, string locationPathName, string assetBundleManifestPath, BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options)
+		{
+			string result;
+			if (BuildPipeline.isBuildingPlayer)
+			{
+				result = "Cannot start a new build because there is already a build in progress.";
+			}
+			else
+			{
+				if (buildTargetGroup == BuildTargetGroup.Unknown)
+				{
+					buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
+				}
+				string text;
+				if (!BuildPipeline.ValidateLocationPathNameForBuildTargetGroup(locationPathName, buildTargetGroup, target, options, out text))
+				{
+					result = text;
+				}
+				else
+				{
+					try
+					{
+						result = BuildPipeline.BuildPlayerInternal(scenes, locationPathName, assetBundleManifestPath, buildTargetGroup, target, options).SummarizeErrors();
+					}
+					catch (Exception exception)
+					{
+						BuildPipeline.LogBuildExceptionAndExit("BuildPipeline.BuildPlayer", exception);
+						result = "";
+					}
+				}
+			}
+			return result;
+		}
+
+		internal static bool ValidateLocationPathNameForBuildTargetGroup(string locationPathName, BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options, out string errorMessage)
+		{
+			bool result;
+			if (string.IsNullOrEmpty(locationPathName))
+			{
+				if ((options & BuildOptions.InstallInBuildFolder) == BuildOptions.None || !PostprocessBuildPlayer.SupportsInstallInBuildFolder(buildTargetGroup, target))
+				{
+					errorMessage = "The 'locationPathName' parameter for BuildPipeline.BuildPlayer should not be null or empty.";
+					result = false;
+					return result;
+				}
+			}
+			else if (string.IsNullOrEmpty(Path.GetFileName(locationPathName)))
+			{
+				string extensionForBuildTarget = PostprocessBuildPlayer.GetExtensionForBuildTarget(buildTargetGroup, target, options);
+				if (!string.IsNullOrEmpty(extensionForBuildTarget))
+				{
+					errorMessage = string.Format("For the '{0}' target the 'locationPathName' parameter for BuildPipeline.BuildPlayer should not end with a directory separator.\nProvided path: '{1}', expected a path with the extension '.{2}'.", target, locationPathName, extensionForBuildTarget);
+					result = false;
+					return result;
+				}
+			}
+			errorMessage = "";
+			result = true;
+			return result;
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern bool IsFeatureSupported(string define, BuildTarget platform);
+
+		[Obsolete("BuildStreamedSceneAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static string BuildStreamedSceneAssetBundle(string[] levels, string locationPath, BuildTarget target, BuildOptions options)
+		{
+			return BuildPipeline.BuildPlayer(levels, locationPath, target, options | BuildOptions.BuildAdditionalStreamedScenes);
+		}
+
+		[Obsolete("BuildStreamedSceneAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static string BuildStreamedSceneAssetBundle(string[] levels, string locationPath, BuildTarget target)
+		{
+			return BuildPipeline.BuildPlayer(levels, locationPath, target, BuildOptions.BuildAdditionalStreamedScenes);
+		}
+
+		[Obsolete("BuildStreamedSceneAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static string BuildStreamedSceneAssetBundle(string[] levels, string locationPath, BuildTarget target, out uint crc, BuildOptions options)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
+			return BuildPipeline.BuildStreamedSceneAssetBundle(levels, locationPath, buildTargetGroup, target, out crc, options);
+		}
+
+		[Obsolete("BuildStreamedSceneAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		internal static string BuildStreamedSceneAssetBundle(string[] levels, string locationPath, BuildTargetGroup buildTargetGroup, BuildTarget target, out uint crc, BuildOptions options)
+		{
+			crc = 0u;
+			string result;
+			try
+			{
+				BuildReport buildReport = BuildPipeline.BuildPlayerInternal(levels, locationPath, null, buildTargetGroup, target, options | BuildOptions.BuildAdditionalStreamedScenes | BuildOptions.ComputeCRC);
+				crc = buildReport.crc;
+				string text = buildReport.SummarizeErrors();
+				UnityEngine.Object.DestroyImmediate(buildReport, true);
+				result = text;
+			}
+			catch (Exception exception)
+			{
+				BuildPipeline.LogBuildExceptionAndExit("BuildPipeline.BuildStreamedSceneAssetBundle", exception);
+				result = "";
+			}
+			return result;
+		}
+
+		[Obsolete("BuildStreamedSceneAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static string BuildStreamedSceneAssetBundle(string[] levels, string locationPath, BuildTarget target, out uint crc)
+		{
+			return BuildPipeline.BuildStreamedSceneAssetBundle(levels, locationPath, target, out crc, BuildOptions.None);
+		}
+
+		private static BuildReport BuildPlayerInternal(string[] levels, string locationPathName, string assetBundleManifestPath, BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options)
+		{
+			if ((BuildOptions.EnableHeadlessMode & options) != BuildOptions.None && (BuildOptions.Development & options) != BuildOptions.None)
+			{
+				throw new Exception("Unsupported build setting: cannot build headless development player");
+			}
+			return BuildPipeline.BuildPlayerInternalNoCheck(levels, locationPathName, assetBundleManifestPath, buildTargetGroup, target, options, false);
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern BuildReport BuildPlayerInternalNoCheck(string[] levels, string locationPathName, string assetBundleManifestPath, BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options, bool delayToAfterScriptReload);
+
+		[Obsolete("BuildAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static bool BuildAssetBundle(UnityEngine.Object mainAsset, UnityEngine.Object[] assets, string pathName, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			uint num;
+			return BuildPipeline.BuildAssetBundle(mainAsset, assets, pathName, out num, assetBundleOptions, targetPlatform);
+		}
+
+		[Obsolete("BuildAssetBundle has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static bool BuildAssetBundle(UnityEngine.Object mainAsset, UnityEngine.Object[] assets, string pathName, out uint crc, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(targetPlatform);
+			return BuildPipeline.BuildAssetBundle(mainAsset, assets, pathName, out crc, assetBundleOptions, buildTargetGroup, targetPlatform);
+		}
+
+		internal static bool BuildAssetBundle(UnityEngine.Object mainAsset, UnityEngine.Object[] assets, string pathName, out uint crc, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform)
+		{
+			crc = 0u;
+			bool result;
+			try
+			{
+				result = BuildPipeline.BuildAssetBundleInternal(mainAsset, assets, null, pathName, assetBundleOptions, targetPlatformGroup, targetPlatform, out crc);
+			}
+			catch (Exception exception)
+			{
+				BuildPipeline.LogBuildExceptionAndExit("BuildPipeline.BuildAssetBundle", exception);
+				result = false;
+			}
+			return result;
+		}
+
+		[Obsolete("BuildAssetBundleExplicitAssetNames has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static bool BuildAssetBundleExplicitAssetNames(UnityEngine.Object[] assets, string[] assetNames, string pathName, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			uint num;
+			return BuildPipeline.BuildAssetBundleExplicitAssetNames(assets, assetNames, pathName, out num, assetBundleOptions, targetPlatform);
+		}
+
+		[Obsolete("BuildAssetBundleExplicitAssetNames has been made obsolete. Please use the new AssetBundle build system introduced in 5.0 and check BuildAssetBundles documentation for details.")]
+		public static bool BuildAssetBundleExplicitAssetNames(UnityEngine.Object[] assets, string[] assetNames, string pathName, out uint crc, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(targetPlatform);
+			return BuildPipeline.BuildAssetBundleExplicitAssetNames(assets, assetNames, pathName, out crc, assetBundleOptions, buildTargetGroup, targetPlatform);
+		}
+
+		internal static bool BuildAssetBundleExplicitAssetNames(UnityEngine.Object[] assets, string[] assetNames, string pathName, out uint crc, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform)
+		{
+			crc = 0u;
+			bool result;
+			try
+			{
+				result = BuildPipeline.BuildAssetBundleInternal(null, assets, assetNames, pathName, assetBundleOptions, targetPlatformGroup, targetPlatform, out crc);
+			}
+			catch (Exception exception)
+			{
+				BuildPipeline.LogBuildExceptionAndExit("BuildPipeline.BuildAssetBundleExplicitAssetNames", exception);
+				result = false;
+			}
+			return result;
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		private static extern bool BuildAssetBundleInternal(UnityEngine.Object mainAsset, UnityEngine.Object[] assets, string[] assetNames, string pathName, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform, out uint crc);
+
+		public static AssetBundleManifest BuildAssetBundles(string outputPath, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(targetPlatform);
+			return BuildPipeline.BuildAssetBundles(outputPath, assetBundleOptions, buildTargetGroup, targetPlatform);
+		}
+
+		internal static AssetBundleManifest BuildAssetBundles(string outputPath, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform)
+		{
+			if (!Directory.Exists(outputPath))
+			{
+				throw new ArgumentException("The output path \"" + outputPath + "\" doesn't exist");
+			}
+			return BuildPipeline.BuildAssetBundlesInternal(outputPath, assetBundleOptions, targetPlatformGroup, targetPlatform);
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		private static extern AssetBundleManifest BuildAssetBundlesInternal(string outputPath, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform);
+
+		public static AssetBundleManifest BuildAssetBundles(string outputPath, AssetBundleBuild[] builds, BuildAssetBundleOptions assetBundleOptions, BuildTarget targetPlatform)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(targetPlatform);
+			return BuildPipeline.BuildAssetBundles(outputPath, builds, assetBundleOptions, buildTargetGroup, targetPlatform);
+		}
+
+		internal static AssetBundleManifest BuildAssetBundles(string outputPath, AssetBundleBuild[] builds, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform)
+		{
+			if (!Directory.Exists(outputPath))
+			{
+				throw new ArgumentException("The output path \"" + outputPath + "\" doesn't exist");
+			}
+			if (builds == null)
+			{
+				throw new ArgumentException("AssetBundleBuild cannot be null.");
+			}
+			return BuildPipeline.BuildAssetBundlesWithInfoInternal(outputPath, builds, assetBundleOptions, targetPlatformGroup, targetPlatform);
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		private static extern AssetBundleManifest BuildAssetBundlesWithInfoInternal(string outputPath, AssetBundleBuild[] builds, BuildAssetBundleOptions assetBundleOptions, BuildTargetGroup targetPlatformGroup, BuildTarget targetPlatform);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern bool GetCRCForAssetBundle(string targetPath, out uint crc);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		public static extern bool GetHashForAssetBundle(string targetPath, out Hash128 hash);
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern bool LicenseCheck(BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern bool IsBuildTargetSupported(BuildTargetGroup buildTargetGroup, BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern bool IsBuildTargetCompatibleWithOS(BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetBuildTargetAdvancedLicenseName(BuildTarget target);
+
+		internal static string GetPlaybackEngineDirectory(BuildTarget target, BuildOptions options)
+		{
+			BuildTargetGroup buildTargetGroup = BuildPipeline.GetBuildTargetGroup(target);
+			return BuildPipeline.GetPlaybackEngineDirectory(buildTargetGroup, target, options);
+		}
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetPlaybackEngineDirectory(BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options);
+
+		[GeneratedByOldBindingsGenerator, ThreadAndSerializationSafe]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetPlaybackEngineExtensionDirectory(BuildTargetGroup buildTargetGroup, BuildTarget target, BuildOptions options);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern void SetPlaybackEngineDirectory(BuildTarget target, BuildOptions options, string playbackEngineDirectory);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetBuildToolsDirectory(BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetMonoBinDirectory(BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetMonoLibDirectory(BuildTarget target);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string CompatibilityProfileToClassLibFolder(ApiCompatibilityLevel compatibilityLevel);
+
+		internal static string GetBuildTargetGroupName(BuildTarget target)
+		{
+			return BuildPipeline.GetBuildTargetGroupName(BuildPipeline.GetBuildTargetGroup(target));
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string GetBuildTargetGroupName(BuildTargetGroup buildTargetGroup);
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern bool IsUnityScriptEvalSupported(BuildTarget target);
+
+		internal static string[] GetReferencingPlayerAssembliesForDLL(string dllPath)
+		{
+			DefaultAssemblyResolver defaultAssemblyResolver = new DefaultAssemblyResolver();
+			defaultAssemblyResolver.AddSearchDirectory(Path.GetDirectoryName(dllPath));
+			AssemblyDefinition assemblyDefinition = AssemblyDefinition.ReadAssembly(dllPath, new ReaderParameters
+			{
+				AssemblyResolver = defaultAssemblyResolver
+			});
+			string[] managedPlayerDllPaths = BuildPipeline.GetManagedPlayerDllPaths();
+			List<string> list = new List<string>();
+			string[] array = managedPlayerDllPaths;
+			for (int i = 0; i < array.Length; i++)
+			{
+				string text = array[i];
+				DefaultAssemblyResolver defaultAssemblyResolver2 = new DefaultAssemblyResolver();
+				defaultAssemblyResolver2.AddSearchDirectory(Path.GetDirectoryName(text));
+				AssemblyDefinition assemblyDefinition2 = AssemblyDefinition.ReadAssembly(text, new ReaderParameters
+				{
+					AssemblyResolver = defaultAssemblyResolver2
+				});
+				foreach (AssemblyNameReference current in assemblyDefinition2.MainModule.AssemblyReferences)
+				{
+					if (current.FullName == assemblyDefinition.Name.FullName)
+					{
+						list.Add(text);
+					}
+				}
+			}
+			return list.ToArray();
+		}
+
+		[GeneratedByOldBindingsGenerator]
+		[MethodImpl(MethodImplOptions.InternalCall)]
+		internal static extern string[] GetManagedPlayerDllPaths();
+	}
+}
